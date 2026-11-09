@@ -1,0 +1,115 @@
+=================== S1 OSにlibbrotliのみ + pipでrequests(brotli無し)  (ubuntu:24.04)
+    setup: apt-get install -y -qq python3 python3-pip libbrotli1 && pip install -q --break-system-packages requests
+[py] /usr/bin/python3 3.12.3
+[py] import brotli: NG (No module named 'brotli')
+[py] import brotlicffi: NG (No module named 'brotlicffi')
+[py] urllib3 2.8.0 ACCEPT_ENCODING='gzip,deflate'
+[py] urllib3 br-response decoded: b'\x0b\x08\x80HELLO-FROM-BROTLI\x03'
+[py] requests sent Accept-Encoding='gzip, deflate' body=b'\x0b\x08\x80HELLO-FROM-BROTLI\x03'
+[py] stdlib urllib body(raw)=b'\x0b\x08\x80HELLO-FROM-BROTLI\x03'
+[py] libbrotli mapped in process: NONE
+[ldd python3] 
+[server] Accept-Encoding received: identity|gzip, deflate|identity
+[dpkg brotli] libbrotli1:amd64=1.1.0-2ubuntu0.1 
+=================== S2 apt python3-requests (既定のRecommends込み)  (ubuntu:24.04)
+    setup: apt-get install -y -qq python3-requests
+[py] /usr/bin/python3 3.12.3
+[py] import brotli: NG (No module named 'brotli')
+[py] import brotlicffi: NG (No module named 'brotlicffi')
+[py] urllib3 2.0.7 ACCEPT_ENCODING='gzip,deflate'
+[py] urllib3 br-response decoded: b'\x0b\x08\x80HELLO-FROM-BROTLI\x03'
+[py] requests sent Accept-Encoding='gzip, deflate' body=b'\x0b\x08\x80HELLO-FROM-BROTLI\x03'
+[py] stdlib urllib body(raw)=b'\x0b\x08\x80HELLO-FROM-BROTLI\x03'
+[py] libbrotli mapped in process: NONE
+[ldd python3] 
+[server] Accept-Encoding received: identity|gzip, deflate|identity
+[dpkg brotli] 
+=================== S3 apt python3-requests + python3-brotli  (ubuntu:24.04)
+    setup: apt-get install -y -qq python3-requests python3-brotli; python3 -c 'import _brotli;print(_brotli.__file__)' | xargs ldd | grep -i brotli >&2
+SETUP-FAILED
+Setting up python3-urllib3 (2.0.7-1ubuntu0.8) ...
+Setting up python3-pkg-resources (68.1.2-2ubuntu1.2) ...
+Setting up python3-chardet (5.2.0+dfsg-1) ...
+Setting up python3-requests (2.31.0+dfsg-1ubuntu1.2) ...
+Processing triggers for libc-bin (2.39-0ubuntu8.9) ...
+[py] /usr/bin/python3 3.12.3
+[py] import brotli: OK -> /usr/lib/python3/dist-packages/brotli.py
+[py] import brotlicffi: NG (No module named 'brotlicffi')
+[py] urllib3 2.0.7 ACCEPT_ENCODING='gzip,deflate,br'
+[py] urllib3 br-response decoded: b'HELLO-FROM-BROTLI'
+[py] requests sent Accept-Encoding='gzip, deflate, br' body=b'HELLO-FROM-BROTLI'
+[py] stdlib urllib body(raw)=b'\x0b\x08\x80HELLO-FROM-BROTLI\x03'
+[py] libbrotli mapped in process: ['/usr/lib/python3/dist-packages/_brotli.cpython-312-x86_64-linux-gnu.so']
+[ldd python3] 
+[server] Accept-Encoding received: identity|gzip, deflate, br|identity
+[dpkg brotli] python3-brotli=1.1.0-2ubuntu0.1 
+=================== S4 公式python:3.13-slim + apt python3-brotli + pip requests  (python:3.13-slim)
+    setup: apt-get install -y -qq python3-brotli && pip install -q requests
+[py] /usr/local/bin/python3 3.13.18
+[py] import brotli: NG (No module named 'brotli')
+[py] import brotlicffi: NG (No module named 'brotlicffi')
+[py] urllib3 2.8.0 ACCEPT_ENCODING='gzip,deflate'
+[py] urllib3 br-response decoded: b'\x0b\x08\x80HELLO-FROM-BROTLI\x03'
+[py] requests sent Accept-Encoding='gzip, deflate' body=b'\x0b\x08\x80HELLO-FROM-BROTLI\x03'
+[py] stdlib urllib body(raw)=b'\x0b\x08\x80HELLO-FROM-BROTLI\x03'
+[py] libbrotli mapped in process: NONE
+[ldd python3] 
+[server] Accept-Encoding received: identity|gzip, deflate|identity
+[dpkg brotli] python3-brotli=1.1.0-2+deb13u1 
+=================== S5 公式python:3.13-slim + pip requests brotli  (python:3.13-slim)
+    setup: pip install -q requests brotli
+[py] /usr/local/bin/python3 3.13.18
+[py] import brotli: OK -> /usr/local/lib/python3.13/site-packages/brotli.py
+[py] import brotlicffi: NG (No module named 'brotlicffi')
+[py] urllib3 2.8.0 ACCEPT_ENCODING='gzip,deflate,br'
+[py] urllib3 br-response decoded: b'HELLO-FROM-BROTLI'
+[py] requests sent Accept-Encoding='gzip, deflate, br' body=b'HELLO-FROM-BROTLI'
+[py] stdlib urllib body(raw)=b'\x0b\x08\x80HELLO-FROM-BROTLI\x03'
+[py] libbrotli mapped in process: ['/usr/local/lib/python3.13/site-packages/_brotli.cpython-313-x86_64-linux-gnu.so']
+[ldd python3] 
+[server] Accept-Encoding received: identity|gzip, deflate, br|identity
+[dpkg brotli] 
+=================== S8 apt nodejs (Ubuntu配布版)  (ubuntu:24.04)
+    setup: apt-get install -y -qq nodejs
+[node] /usr/bin/node v18.19.1 process.versions.brotli=1.1.0
+[node] zlib.brotliDecompressSync: HELLO-FROM-BROTLI
+[node] fetch() body=HELLO-FROM-BROTLI
+[node] libbrotli mapped in process: ["/usr/lib/x86_64-linux-gnu/libbrotlicommon.so.1.1.0","/usr/lib/x86_64-linux-gnu/libbrotlienc.so.1.1.0","/usr/lib/x86_64-linux-gnu/libbrotlidec.so.1.1.0"]
+[ldd node] libbrotlidec.so.1 libbrotlienc.so.1 libbrotlicommon.so.1 
+[server] Accept-Encoding received: gzip, deflate
+[dpkg brotli] libbrotli1:amd64=1.1.0-2ubuntu0.1 
+=================== S9 公式node:22-slim + apt libbrotli1  (node:22-slim)
+    setup: apt-get install -y -qq libbrotli1
+[node] /usr/local/bin/node v22.23.4 process.versions.brotli=1.1.0
+[node] zlib.brotliDecompressSync: HELLO-FROM-BROTLI
+[node] fetch() body=HELLO-FROM-BROTLI
+[node] libbrotli mapped in process: []
+[ldd node] 
+[server] Accept-Encoding received: gzip, deflate
+[dpkg brotli] libbrotli1:amd64=1.0.9-2+deb12u1 
+=================== S6 venv(--system-site-packagesなし) + apt python3-brotli  (ubuntu:24.04)
+    setup: apt-get install -y -qq python3-venv python3-brotli && python3 -m venv /v && /v/bin/pip install -q requests
+[py] /v/bin/python3 3.12.3
+[py] import brotli: NG (No module named 'brotli')
+[py] import brotlicffi: NG (No module named 'brotlicffi')
+[py] urllib3 2.8.0 ACCEPT_ENCODING='gzip,deflate'
+[py] urllib3 br-response decoded: b'\x0b\x08\x80HELLO-FROM-BROTLI\x03'
+[py] requests sent Accept-Encoding='gzip, deflate' body=b'\x0b\x08\x80HELLO-FROM-BROTLI\x03'
+[py] stdlib urllib body(raw)=b'\x0b\x08\x80HELLO-FROM-BROTLI\x03'
+[py] libbrotli mapped in process: NONE
+[ldd /v/bin/python3] 
+[server] Accept-Encoding received: identity|gzip, deflate|identity
+[dpkg brotli] python3-brotli=1.1.0-2ubuntu0.1 
+=================== S7 venv --system-site-packages + apt python3-brotli  (ubuntu:24.04)
+    setup: apt-get install -y -qq python3-venv python3-brotli && python3 -m venv --system-site-packages /v && /v/bin/pip install -q requests
+[py] /v/bin/python3 3.12.3
+[py] import brotli: OK -> /usr/lib/python3/dist-packages/brotli.py
+[py] import brotlicffi: NG (No module named 'brotlicffi')
+[py] urllib3 2.8.0 ACCEPT_ENCODING='gzip,deflate,br'
+[py] urllib3 br-response decoded: b'HELLO-FROM-BROTLI'
+[py] requests sent Accept-Encoding='gzip, deflate, br' body=b'HELLO-FROM-BROTLI'
+[py] stdlib urllib body(raw)=b'\x0b\x08\x80HELLO-FROM-BROTLI\x03'
+[py] libbrotli mapped in process: ['/usr/lib/python3/dist-packages/_brotli.cpython-312-x86_64-linux-gnu.so']
+[ldd /v/bin/python3] 
+[server] Accept-Encoding received: identity|gzip, deflate, br|identity
+[dpkg brotli] python3-brotli=1.1.0-2ubuntu0.1 

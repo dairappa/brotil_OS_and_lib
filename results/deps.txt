@@ -1,0 +1,24 @@
+## python3-brotli の _brotli.so の動的リンク先
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007fab0cb11000)
+Depends: python3 (<< 3.13), python3 (>= 3.12~), python3:any, libc6 (>= 2.14)
+## python3-urllib3 / python3-requests の依存関係（brotli関連）
+python3-urllib3: python3-brotli   Suggests
+python3-requests:   
+## libbrotli1 に依存する主なパッケージ（逆依存）
+adb apache2-bin apitrace apitrace-gui brotli cyrus-caldav dotnet-apphost-pack-10.0 dotnet-runtime-10.0 dotnet-sdk-aot-10.0 dvisvgm elinks libbrotli-dev libcpp-httplib0.14t64 libcpprest2.10 libcurl3t64-gnutls libcurl4t64 libdrogon1t64 libfreetype6 libicapapi5t64 libio-compress-brotli-perl libjpegxl-java libjxl-devtools libjxl-tools libjxl0.7 libnginx-mod-http-brotli-filter libnode109 libqt6network6t64 libsoup-2.4-1 libsoup-3.0-0 libsoup-3.0-tests libwget2t64 libwireshark17t64 libwoff1 lighttpd-mod-deflate links links2 lynx nix-bin privoxy rr trafficserver ugrep 
+## ldd: libcurl / libfreetype / Pillow(apt)
+/usr/lib/x86_64-linux-gnu/libcurl.so.4 -> libbrotlicommon libbrotlidec 
+/usr/lib/x86_64-linux-gnu/libfreetype.so.6 -> libbrotlicommon libbrotlidec 
+## 実行時: apt版Pillowでフォント読込 → libbrotliがロードされるか
+['/usr/lib/x86_64-linux-gnu/libbrotlicommon.so.1.1.0', '/usr/lib/x86_64-linux-gnu/libbrotlidec.so.1.1.0']
+## 実行時: pycurl (ACCEPT_ENCODING未指定 / 指定)
+default: b'\x0b\x08\x80HELLO-FROM-BROTLI\x03'
+ACCEPT_ENCODING="": b'HELLO-FROM-BROTLI'
+['/usr/lib/x86_64-linux-gnu/libbrotlicommon.so.1.1.0', '/usr/lib/x86_64-linux-gnu/libbrotlidec.so.1.1.0']
+## curl CLI --compressed
+HELLO-FROM-BROTLI
+brotli/1.1.0
+## pip版Pillow（wheel同梱ライブラリ）
+libbrotlicommon-53534446.so.1.2.0
+libbrotlidec-7e5462ba.so.1.2.0
+libfreetype-57f805ba.so.6.20.6
