@@ -146,6 +146,35 @@ Trivyで検知できるのは「OSパッケージ」と「npmパッケージ」�
 Vulsは未検証である。
 仕組み上、OSパッケージは検知できるはずだが、パッケージ管理外の公式バイナリはCPEを手動で登録しない限り対象外と考えられる。
 
+## CVE-2026-111497（HTTP2Shell/Node2Shell）での検証
+
+CVE-2026-111497は、Google Brotliのデコーダ（`c/dec/decode.c`）の範囲外書き込みである。
+影響バージョンはBrotli 1.0.3〜1.2.0で、修正版は1.0.10、1.1.1、1.2.1である。
+細工したbr圧縮データで、認証なしにリモートからコード実行できる可能性があり（CRITICAL）、CISAのKEVにも登録されている。
+
+修正前と修正後のイメージを用意し、Trivyでこのイメージを検知できるかを確かめた（`lab/cve-2026-111497.sh`）。
+結果は[`results/cve-2026-111497/summary.txt`](results/cve-2026-111497/summary.txt)にある（2026-11-09時点のTrivy DB）。
+
+| イメージ | 中身 | Trivyの検知 |
+|---|---|---|
+| `node:22.20.0-slim` | 修正前の公式Node | 検知されない |
+| `node:24.10.0-slim` | 修正前の公式Node | 検知されない |
+| `node:22-slim`（v22.23.4） | 現行の公式Node | 検知されない |
+| Ubuntu 24.04＋apt `nodejs`、`libbrotli1=1.1.0-2build2` | 修正前のOSライブラリ | 検知される（`libbrotli1`、修正版1.1.0-2ubuntu0.1） |
+| Ubuntu 24.04＋apt `nodejs`、`libbrotli1=1.1.0-2ubuntu0.1` | 修正済みのOSライブラリ | 検知されない（正しい） |
+| `python:3.13-slim`＋pip `brotli==1.1.0` | 修正前のPythonパッケージ | 検知される（修正版1.2.1） |
+| `python:3.13-slim`＋pip `brotli`（1.2.1） | 修正済みのPythonパッケージ | 検知されない（正しい） |
+
+公式Nodeは、修正前のバージョンでも検知されなかった。
+公式Nodeを使っている場合、CVEのスキャン結果だけでは、このCVEの影響を受けるかどうか判断できない。
+
+また、`process.versions.brotli`は修正前のv22.20.0でも現行のv22.23.4でも`1.1.0`のままだった。
+Nodeは修正をバックポートしていてもこの表示を変えないので、Brotliのバージョンではなく、Nodeのバージョンを公式のセキュリティリリース（2026年10月）と照らし合わせる必要がある。
+
+apt版Nodeの場合、検知されるのは`libbrotli1`であって`nodejs`ではない。
+apt版NodeはOSのライブラリを使うので、これで正しい。
+`libbrotli1`を更新し、Nodeのプロセスを再起動すれば修正が効く。
+
 ## 再現手順
 
 前提はDockerとpython3、nodeである。
@@ -179,6 +208,12 @@ Trivyで検知範囲を確認する（検証用イメージの作成、スキャ
 lab/trivy.sh
 ```
 
+CVE-2026-111497の検知を確かめる。
+
+```bash
+lab/cve-2026-111497.sh
+```
+
 HTTPSのみを通すプロキシの内側で実行する場合は、`HTTPS_PROXY`と`CA_BUNDLE`（CA証明書ファイルのパス）を環境変数で渡す。
 
 ## ファイル構成
@@ -193,6 +228,7 @@ HTTPSのみを通すプロキシの内側で実行する場合は、`HTTPS_PROXY
 | `lab/all.sh` | S1〜S9を順に実行する |
 | `lab/deps.sh` | パッケージ依存と間接経路（Pillow、pycurl、curl）の調査 |
 | `lab/trivy.sh` | 検証用イメージを作成し、Trivyでスキャンして要約する |
+| `lab/cve-2026-111497.sh` | CVE-2026-111497の修正前と修正後のイメージを作成し、Trivyで検知できるか確かめる |
 | `lab/trivy_summary.py` | TrivyのJSONからbrotli、node、react関連だけを抜き出す |
 | `results/` | 実行結果の生ログ。`results/trivy/summary.txt`がTrivyの要約 |
 
