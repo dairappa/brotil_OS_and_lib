@@ -108,6 +108,44 @@ ldd "$(which node)" | grep -i brotli
 2つ目が成功すれば、urllib3/requestsはBrotliを自動で使う。
 3つ目と4つ目で、Nodeが同梱版かOSのlibbrotliを使っているかが分かる。
 
+## Nodeの依存関係はどこに書かれているか
+
+apt版では、`nodejs`パッケージ自体にはBrotliへの依存が書かれていない。
+Node本体は`libnode109`という共有ライブラリにあり、そちらに`Depends: libbrotli1 (>= 1.0.0)`と書かれている。
+
+公式バイナリ（nodejs.org、nvm、公式Dockerイメージ）には、依存関係としての記載が無い。
+Brotliはソースツリーの`deps/brotli`を一緒にビルドして取り込んだ部品という扱いで、手がかりは`process.versions.brotli`と、配布物の`LICENSE`にあるbrotliの項だけである。
+
+Brotliは`zlib`モジュールに組み込まれた機能なので、`package.json`や`package-lock.json`には出てこない。
+そのため`npm audit`、Dependabot、`npm sbom`の対象外である。
+
+## 脆弱性スキャナ（Trivy）で検知できる範囲
+
+Trivy 0.76.2（公式Dockerイメージ`aquasec/trivy`）で各イメージをスキャンした。
+要約は[`results/trivy/summary.txt`](results/trivy/summary.txt)にある（2026-11-09時点のTrivy DB）。
+
+| イメージ | 検知結果 |
+|---|---|
+| Ubuntu 24.04＋apt `nodejs` | 検知できる。`libbrotli1`、`libnode109`、`nodejs`がOSパッケージとして出て、Node本体のCVE（`CVE-2024-27983` HTTP/2 CONTINUATION DoSなど7件）も出た |
+| Ubuntu 20.04＋古い`libbrotli1`（1.0.7-6build1） | 検知できる。`CVE-2020-8927`（Brotliのバッファオーバーフロー、修正版1.0.7-6ubuntu0.1）が出た |
+| `node:22-slim`（公式） | Node本体は出ない。npmに付属するnpmパッケージだけが出る |
+| `node:20.0.0-slim`（既知のCVEが多い古いNode） | Node本体のCVEは0件。67件の脆弱性はすべてnpm付属のパッケージ（`brace-expansion`、`tar`など） |
+| Ubuntu＋公式nodeバイナリをコピーしただけ | Nodeの存在自体が出ない |
+| `node:22-slim`＋npm `brotli` `brotli-wasm` | 検知できる。npmパッケージとして出る |
+| `node:22-slim`＋npm `react-server-dom-webpack@19.0.0` | 検知できる。React2Shell（`CVE-2025-55182`、CRITICAL）などが出る |
+
+Trivyで検知できるのは「OSパッケージ」と「npmパッケージ」だけである。
+公式バイナリのNodeは、Node本体の脆弱性も、同梱しているBrotliやnghttp2の脆弱性も検知されない。
+
+この部分は別の方法で管理する必要がある。
+
+- `node -p process.versions`で、Node本体と同梱ライブラリ（`brotli`、`nghttp2`、`openssl`など）のバージョンを確認する
+- Node公式のセキュリティリリースを追う
+- ベースイメージのタグを最新に保つ
+
+Vulsは未検証である。
+仕組み上、OSパッケージは検知できるはずだが、パッケージ管理外の公式バイナリはCPEを手動で登録しない限り対象外と考えられる。
+
 ## 再現手順
 
 前提はDockerとpython3、nodeである。
@@ -135,6 +173,12 @@ cd lab && ./all.sh | tee ../results/results.txt
 docker run --rm --network host -v "$PWD/lab:/lab" -e DEBIAN_FRONTEND=noninteractive ubuntu:24.04 bash /lab/deps.sh
 ```
 
+Trivyで検知範囲を確認する（検証用イメージの作成、スキャン、要約まで行う）。
+
+```bash
+lab/trivy.sh
+```
+
 HTTPSのみを通すプロキシの内側で実行する場合は、`HTTPS_PROXY`と`CA_BUNDLE`（CA証明書ファイルのパス）を環境変数で渡す。
 
 ## ファイル構成
@@ -148,9 +192,12 @@ HTTPSのみを通すプロキシの内側で実行する場合は、`HTTPS_PROXY
 | `lab/scen.sh` | 1シナリオ分のコンテナを起動する |
 | `lab/all.sh` | S1〜S9を順に実行する |
 | `lab/deps.sh` | パッケージ依存と間接経路（Pillow、pycurl、curl）の調査 |
-| `results/` | 実行結果の生ログ |
+| `lab/trivy.sh` | 検証用イメージを作成し、Trivyでスキャンして要約する |
+| `lab/trivy_summary.py` | TrivyのJSONからbrotli、node、react関連だけを抜き出す |
+| `results/` | 実行結果の生ログ。`results/trivy/summary.txt`がTrivyの要約 |
 
 ## 未確認の点
 
 - httpsでの`fetch()`の`Accept-Encoding`
+- Vulsでの検知範囲
 - 特定CVEのペイロードによる実際の再現
