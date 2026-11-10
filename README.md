@@ -236,6 +236,38 @@ Trivyでも検知されなかった。
 - 「同梱版はOS側の脆弱性の影響を受けない」という以前の記述は不正確だった。同梱しているバージョン自体が脆弱なら影響を受ける
 - 「`package.json`に無くてもNode本体経由で影響を受ける」「公式NodeはTrivyで検知できない」という結論は、再検証でも変わらなかった
 
+## 世の中の状況：更新していない環境はどれくらいあるか
+
+2026-11-10時点の公開情報を調べた。
+ここは実機での検証ではなく、各社の報告の引用である。
+
+### 見逃しが広くあることを示すデータ
+
+- Akamaiは、自社の観測で61%のネットワークに影響を受けるバージョンのNode.jsがあるとしている（[Akamai](https://www.akamai.com/blog/security-research/inside-node2shell-closer-look-cve-2026-111497)）
+- Wizは、クラウド環境の91%に脆弱なリソースがあり、82%では外部に公開されたリソースにあるとしている。これは[Brandefense](https://brandefense.io/blog/node2shell-nodejs-brotli-rce-cve-2026-111497/)による二次引用で、Wiz自身の調査では確認していない
+- サポートが終了したNode.js 20.x以前、23.x、25.xには修正が出ない。HeroDevsは20.20.2に脆弱なデコーダがあることを確認している（[HeroDevs](https://www.herodevs.com/blog-posts/cve-2026-111497-node2shell-node-js-brotli-rce)）
+
+### 悪用の状況
+
+- ELLIOがセンサーで攻撃通信を観測している（[ELLIO](https://ellio.tech/en/blog/node2shell-cve-2026-111497-rce-on-stock-nodejs-builds/)）
+- CISAは2026-10-27に、悪用が確認された脆弱性の一覧（KEV）へ追加した（[Help Net Security](https://www.helpnetsecurity.com/2026/10/27/node2shell-broccoli2shell-vulnerability-cve-2026-111497/)）
+- Impervaは、公式イメージ`node:24.22.0-slim`でコード実行を実証し、24.22.1では同じ入力が拒否されたとしている（[Cybersecurity News](https://cybersecuritynews.com/node2shell-vulnerability/)）
+
+観測されているのは攻撃の試行である。
+組織名が挙がった被害事例や、侵害に成功したと確認された事例は、調べた範囲では見つからなかった。
+
+### 見逃しが起きやすい環境
+
+この調査の結果と合わせると、次の環境で見逃しが起きやすい。
+
+1. ベースイメージのタグを固定している。`FROM node:22.20.0-slim`のように固定していると、再ビルドしても古いままで、Trivyでも検知されない
+2. `npm audit`やDependabotだけで管理している。Node本体は対象外なので、警告が出ない
+3. サポート終了版を使い続けている。修正版が無いので、メジャーバージョンを上げるしかない
+4. Node以外の同梱先がある。Bun（1.4.4より前）、.NET、Envoy、pip版Pillowなどにも同じBrotliが入っている（[Cycode](https://cycode.com/blog/node2shell-cve-2026-111497/)）
+
+調べた解説記事はどれも「Node本体を上げる必要がある」とは書いている。
+一方、「脆弱性スキャナでは公式Nodeが検知されない」ことに触れた記事は、検索では見つからなかった。
+
 ## 再現手順
 
 前提はDockerとpython3、nodeである。
