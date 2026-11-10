@@ -82,7 +82,9 @@ Ubuntu 24.04の`python3-brotli`は、OSの`libbrotli1`にリンクしていな�
 したがって、`libbrotli1`を更新しても`python3-brotli`は直らず、別途更新が必要である。
 
 同様に、pipの`brotli` wheelとpip版Pillowは自前のlibbrotliを同梱している（Pillowのwheelは1.2.0）。
-これらはOS側の更新では直らず、逆にOS側の脆弱性の影響も受けない。
+これらはOS側の更新では直らない。
+OS側のライブラリの状態とは無関係に、同梱しているバージョンそのものが脆弱かどうかで影響が決まる。
+Pillow 13.0.0が同梱する1.2.0はCVE-2026-111497の影響範囲に入っている（後述の再検証を参照）。
 
 ## 影響範囲の確認方法
 
@@ -184,6 +186,56 @@ apt版Nodeの場合、検知されるのは`libbrotli1`であって`nodejs`で�
 apt版NodeはOSのライブラリを使うので、これで正しい。
 `libbrotli1`を更新し、Nodeのプロセスを再起動すれば修正が効く。
 
+## 再検証（2026-11-10）
+
+ここまでの結論を、一次情報と追加の実機確認で検証し直した。
+結果は[`results/verify/summary.txt`](results/verify/summary.txt)にある。
+
+### 一次情報で裏付けが取れた点
+
+- Node.js公式：対象は「Nodeに同梱しているBrotliデコーダ」で、22.x、24.x、26.xが影響を受ける。v22.23.4のリリースノートには`deps: brotli: cherry-pick 0ed4268a…`とあり、Brotliのバージョンを上げずに修正コミットだけを取り込んでいる
+- Ubuntu公式（CVEページ）：`nodejs`は22.04以降で「not-affected」とされ、理由は「システムのbrotliを使うため」と書かれている。apt版NodeがOSの`libbrotli1`を使うという実験結果と一致する。20.04の`nodejs`は同梱のbrotliを使うため「Vulnerable」で、修正版は出ていない
+- Ubuntu公式（USN-8956-1）：修正対象のバイナリパッケージは`brotli`、`libbrotli1`、`python3-brotli`で、24.04の修正版は1.1.0-2ubuntu0.1である
+
+### 修正の有無をバイナリから見分ける
+
+修正では、新しいエラーコード`BROTLI_DECODER_ERROR_FORMAT_BLOCK_SWITCH`が追加されている。
+バイナリにこの文字列が含まれるかを見れば、バージョン表示が変わらなくても修正の有無が分かる（`lab/verify/marker.py`）。
+攻撃データは使っていない。
+
+| 対象 | 目印 |
+|---|---|
+| 公式Node 22.20.0、24.10.0 | なし（未修正） |
+| 公式Node 22.23.4 | あり（修正済み） |
+| pip `brotli` 1.1.0 | なし |
+| pip `brotli` 1.2.1 | あり |
+| Ubuntu 24.04 `libbrotli1`／`python3-brotli` 1.1.0-2build2 | なし |
+| Ubuntu 24.04 `libbrotli1`／`python3-brotli` 1.1.0-2ubuntu0.1 | あり |
+| pip Pillow 13.0.0同梱の`libbrotlidec` | **なし** |
+
+Ubuntuの修正済み`libbrotli1`も、`BrotliDecoderVersion()`は1.1.0のままだった。
+バージョンの数字では、修正の有無を判断できない。
+
+### 新たに分かった点：pip版Pillowが未修正のBrotliを同梱している
+
+最新のPillow 13.0.0のwheelは、Brotli 1.2.0のデコーダを同梱しており、修正の目印が無い。
+Trivyでも検知されなかった。
+
+ただし、PillowがBrotliを使うのは、FreeTypeがWOFF2フォントを読むときだけである。
+信頼できないフォントファイルを`ImageFont`で読み込む処理が無ければ、攻撃経路にはならない。
+上流では[python-pillow/Pillow#10337](https://github.com/python-pillow/Pillow/issues/10337)で、同梱Brotliを1.2.1へ上げる対応が求められている。
+
+### その他の確認
+
+- Ubuntuの`python3-brotli`はBrotliを内部に持つが、Trivyは修正前のバージョンを正しく検知した（ソースパッケージ`brotli`として照合される）
+- Trivyを`--detection-priority comprehensive`にしても、修正前の公式Nodeは検知されなかった
+- Express 5.3.0（body-parser 2.4.0）は、`Content-Encoding: br`のリクエストボディを自動で展開した。素の`http`サーバは展開しなかった（`lab/verify/express.js`）
+
+### 結論の修正点
+
+- 「同梱版はOS側の脆弱性の影響を受けない」という以前の記述は不正確だった。同梱しているバージョン自体が脆弱なら影響を受ける
+- 「`package.json`に無くてもNode本体経由で影響を受ける」「公式NodeはTrivyで検知できない」という結論は、再検証でも変わらなかった
+
 ## 再現手順
 
 前提はDockerとpython3、nodeである。
@@ -238,6 +290,9 @@ HTTPSのみを通すプロキシの内側で実行する場合は、`HTTPS_PROXY
 | `lab/deps.sh` | パッケージ依存と間接経路（Pillow、pycurl、curl）の調査 |
 | `lab/trivy.sh` | 検証用イメージを作成し、Trivyでスキャンして要約する |
 | `lab/cve-2026-111497.sh` | CVE-2026-111497の修正前と修正後のイメージを作成し、Trivyで検知できるか確かめる |
+| `lab/verify/marker.py` | バイナリに修正の目印（`BLOCK_SWITCH`のエラーコード名）があるかを調べる |
+| `lab/verify/ver.py` | 共有ライブラリの`BrotliDecoderVersion()`を表示する |
+| `lab/verify/express.js` | Express 5と素のhttpサーバが、brのリクエストボディを展開するかを調べる |
 | `lab/trivy_summary.py` | TrivyのJSONからbrotli、node、react関連だけを抜き出す |
 | `results/` | 実行結果の生ログ。`results/trivy/summary.txt`がTrivyの要約 |
 

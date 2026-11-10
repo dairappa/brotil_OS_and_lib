@@ -1,0 +1,35 @@
+再検証の結果 (2026-11-10, Trivy 0.76.2 / DB 2026-11-10)
+
+## 1. 修正の有無をバイナリから見分ける (lab/verify/marker.py)
+修正で追加されたエラーコード名 BROTLI_DECODER_ERROR_FORMAT_BLOCK_SWITCH の有無を見る。
+
+  公式Node 22.20.0 (修正前)                     marker=none
+  公式Node 24.10.0 (修正前)                     marker=none
+  公式Node 22.23.4 (修正版)                     marker=['BROTLI_DECODER_ERROR_FORMAT_BLOCK_SWITCH', '_ERROR_FORMAT_BLOCK_SWITCH']
+  pip brotli 1.1.0  _brotli.so                  marker=none
+  pip brotli 1.2.1  _brotli.so                  marker=['BROTLI_DECODER_ERROR_FORMAT_BLOCK_SWITCH', '_ERROR_FORMAT_BLOCK_SWITCH']
+  pip Pillow 13.0.0 libbrotlidec-*.so.1.2.0     marker=none
+  Ubuntu 24.04 libbrotli1 1.1.0-2ubuntu0.1      marker=['_ERROR_FORMAT_BLOCK_SWITCH']
+  Ubuntu 24.04 python3-brotli 1.1.0-2ubuntu0.1  marker=['_ERROR_FORMAT_BLOCK_SWITCH']
+  Ubuntu 24.04 libbrotli1 1.1.0-2build2         marker=none
+  Ubuntu 24.04 python3-brotli 1.1.0-2build2     marker=none
+
+## 2. ライブラリが自己申告するバージョン (lab/verify/ver.py, BrotliDecoderVersion)
+  Ubuntu 24.04 libbrotli1 1.1.0-2ubuntu0.1 (修正済み) -> 1.1.0
+  Ubuntu 24.04 libbrotli1 1.1.0-2build2    (修正前)   -> 1.1.0
+  pip Pillow 13.0.0 同梱 libbrotlidec                 -> 1.2.0
+  node -p process.versions.brotli: v22.20.0 (修正前) = 1.1.0 / v22.23.4 (修正版) = 1.1.0
+
+## 3. Pillow 13.0.0 (pip, python:3.13-slim)
+  pillow.libs: libbrotlicommon-53534446.so.1.2.0 libbrotlidec-7e5462ba.so.1.2.0 libfreetype-57f805ba.so.6.20.6
+  ImageFont.load_default() 後にプロセスへロードされる: libbrotlicommon / libbrotlidec (同梱版)
+
+## 4. Trivy で CVE-2026-111497 が出るか
+  Ubuntu 24.04 + python3-brotli=1.1.0-2build2 (libbrotli1 なし)  DETECTED: python3-brotli 1.1.0-2build2->1.1.0-2ubuntu0.1
+  python:3.13-slim + pip Pillow 13.0.0                           not detected
+  node:22.20.0-slim --detection-priority comprehensive           not detected
+
+## 5. リクエストボディの自動展開 (lab/verify/express.js, Node 22.23.4, express 5.3.0, body-parser 2.4.0)
+  [express5 + express.text()] 200 handler saw: "HELLO-FROM-BROTLI"       <- br を自動展開
+  [express5 + express.json(), text/plain body] 200 handler saw: undefined <- Content-Typeが合わないパーサは展開しない
+  [bare http server] 200 handler saw raw bytes: 0b088048454c4c4f2d46524f4d2d42524f544c4903  <- 展開しない
